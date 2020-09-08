@@ -314,8 +314,8 @@ void PongMode::draw(glm::uvec2 const &drawable_size) {
 	const glm::u8vec4 total_score_color = HEX_TO_U8VEC4(0x08000800 * (uint8_t)glm::clamp(left_score + right_score, (uint32_t)0, (uint32_t)8));
 	const glm::u8vec4 new_bg_color = HEX_TO_U8VEC4(0x070007FF) + total_score_color + right_score_color + left_score_color;
 
-	const glm::u8vec4 bg_color = HEX_TO_U8VEC4(0x171714ff);
-	const glm::u8vec4 fg_color = HEX_TO_U8VEC4(0xd1bb54ff);
+	//const glm::u8vec4 bg_color = HEX_TO_U8VEC4(0x171714ff);
+	//const glm::u8vec4 fg_color = HEX_TO_U8VEC4(0xd1bb54ff);
 	const glm::u8vec4 new_fg_color = HEX_TO_U8VEC4(0xd1ff54ff);
 
 	const glm::u8vec4 shadow_color = HEX_TO_U8VEC4(0x604d29ff);
