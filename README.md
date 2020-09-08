@@ -6,7 +6,7 @@ Design: Duke it out with your friends in Nidpongg! Free your paddle from the sha
 
 Screen Shot:
 
-![Screen Shot](screenshot.png)
+![Screen Shot](game_screenshot.png)
 
 How To Play:
 
