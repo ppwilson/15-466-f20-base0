@@ -1,8 +1,8 @@
-# (TODO: your game's title)
+# NidPongg
 
-Author: (TODO: your name)
+Author: Pablo Wilson
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: Duke it out with your friends in Nidpongg! Free your paddle from the shackles of the edge to try to swat away the ball from your opponent
 
 Screen Shot:
 
@@ -10,6 +10,12 @@ Screen Shot:
 
 How To Play:
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+Player 1 controls:
+ - WASD
+ - F/G to spin
+
+ Player 2 controls:
+ - Arrow keys
+ - RSHIFT/RCTRL to spin
 
 This game was built with [NEST](NEST.md).

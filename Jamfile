@@ -78,6 +78,7 @@ GAME_NAMES =
 	ColorTextureProgram
 	Mode
 	GL
+	Paddle
 	;
 
 LOCATE_TARGET = objs ; #put objects in 'objs' directory

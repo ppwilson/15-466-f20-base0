@@ -1,5 +1,7 @@
 #include "PongMode.hpp"
 
+#include "Paddle.hpp"
+
 //for the GL_ERRORS() macro:
 #include "gl_errors.hpp"
 
@@ -7,6 +9,14 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <random>
+
+//inline helper function for vector rotation
+//tbh didn't understand this format for inline functions but wanted to try it out, TODO ask a question about it next class
+//was giving me a ton of errors, went the normal route of typing helper functions
+void rotate_vector(glm::vec2& vector, float theta) {
+	glm::mat2 rotation_matrix(cos(theta), sin(theta), -1.0f * sin(theta), cos(theta)); //Column-Major order
+	vector = rotation_matrix * vector;
+};
 
 PongMode::PongMode() {
 
@@ -24,7 +34,8 @@ PongMode::PongMode() {
 		GL_ERRORS(); //PARANOIA: print out any OpenGL errors that may have happened
 	}
 
-	{ //vertex array mapping buffer for color_texture_program:
+	//vertex array mapping buffer for color_texture_program:
+	{ 
 		//ask OpenGL to fill vertex_buffer_for_color_texture_program with the name of an unused vertex array object:
 		glGenVertexArrays(1, &vertex_buffer_for_color_texture_program);
 
@@ -75,7 +86,8 @@ PongMode::PongMode() {
 		GL_ERRORS(); //PARANOIA: print out any OpenGL errors that may have happened
 	}
 
-	{ //solid white texture:
+	//solid white texture:
+	{ 
 		//ask OpenGL to fill white_tex with the name of an unused texture object:
 		glGenTextures(1, &white_tex);
 
@@ -118,15 +130,16 @@ PongMode::~PongMode() {
 }
 
 bool PongMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
-
-	if (evt.type == SDL_MOUSEMOTION) {
-		//convert mouse from window pixels (top-left origin, +y is down) to clip space ([-1,1]x[-1,1], +y is up):
-		glm::vec2 clip_mouse = glm::vec2(
-			(evt.motion.x + 0.5f) / window_size.x * 2.0f - 1.0f,
-			(evt.motion.y + 0.5f) / window_size.y *-2.0f + 1.0f
-		);
-		left_paddle.y = (clip_to_court * glm::vec3(clip_mouse, 1.0f)).y;
-	}
+	// Good debugging tool (or cheat ;) )
+	//if (evt.type == SDL_MOUSEMOTION) {
+	//	//convert mouse from window pixels (top-left origin, +y is down) to clip space ([-1,1]x[-1,1], +y is up):
+	//	glm::vec2 clip_mouse = glm::vec2(
+	//		(evt.motion.x + 0.5f) / window_size.x * 2.0f - 1.0f,
+	//		(evt.motion.y + 0.5f) / window_size.y *-2.0f + 1.0f
+	//	);
+	//	left_paddle.center.y = (clip_to_court * glm::vec3(clip_mouse, 1.0f)).y;
+	//	left_paddle.center.x = (clip_to_court * glm::vec3(clip_mouse, 1.0f)).x;
+	//}
 
 	return false;
 }
@@ -137,70 +150,103 @@ void PongMode::update(float elapsed) {
 
 	//----- paddle update -----
 
-	{ //right player ai:
-		ai_offset_update -= elapsed;
-		if (ai_offset_update < elapsed) {
-			//update again in [0.5,1.0) seconds:
-			ai_offset_update = (mt() / float(mt.max())) * 0.5f + 0.5f;
-			ai_offset = (mt() / float(mt.max())) * 2.5f - 1.25f;
-		}
-		if (right_paddle.y < ball.y + ai_offset) {
-			right_paddle.y = std::min(ball.y + ai_offset, right_paddle.y + 2.0f * elapsed);
-		} else {
-			right_paddle.y = std::max(ball.y + ai_offset, right_paddle.y - 2.0f * elapsed);
-		}
+	//Update the key states
+	SDL_PumpEvents();
+	const Uint8* state = SDL_GetKeyboardState(NULL);
+
+	//left player controls, WASD, space to rotate
+	{
+		if (state[SDL_SCANCODE_W]) { left_paddle.center.y = left_paddle.center.y + left_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_S]) { left_paddle.center.y = left_paddle.center.y - left_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_A]) { left_paddle.center.x = left_paddle.center.x - left_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_D]) { left_paddle.center.x = left_paddle.center.x + left_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_F]) { left_paddle.rotation += left_paddle.rotation_speed * elapsed;  }
+		if (state[SDL_SCANCODE_G]) { left_paddle.rotation -= left_paddle.rotation_speed * elapsed; }
 	}
 
-	//clamp paddles to court:
-	right_paddle.y = std::max(right_paddle.y, -court_radius.y + paddle_radius.y);
-	right_paddle.y = std::min(right_paddle.y,  court_radius.y - paddle_radius.y);
+	//left player controls, Arrow keys, right_ctrl to rotate
+	{
+		if (state[SDL_SCANCODE_UP])     { right_paddle.center.y = right_paddle.center.y + right_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_DOWN])   { right_paddle.center.y = right_paddle.center.y - right_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_LEFT])   { right_paddle.center.x = right_paddle.center.x - right_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_RIGHT])  { right_paddle.center.x = right_paddle.center.x + right_paddle.speed * elapsed; }
+		if (state[SDL_SCANCODE_RSHIFT]) { right_paddle.rotation += right_paddle.rotation_speed * elapsed; }
+		if (state[SDL_SCANCODE_RCTRL])  { right_paddle.rotation -= right_paddle.rotation_speed * elapsed; }
+	}
+	
+	
 
-	left_paddle.y = std::max(left_paddle.y, -court_radius.y + paddle_radius.y);
-	left_paddle.y = std::min(left_paddle.y,  court_radius.y - paddle_radius.y);
+	//clamp paddles to court:
+	right_paddle.center.y = std::max(right_paddle.center.y, -court_radius.y + right_paddle.radius.y);
+	right_paddle.center.y = std::min(right_paddle.center.y,  court_radius.y - right_paddle.radius.y);
+	right_paddle.center.x = std::max(right_paddle.center.x, -court_radius.x + right_paddle.radius.x);
+	right_paddle.center.x = std::min(right_paddle.center.x,  court_radius.x - right_paddle.radius.x);
+
+	left_paddle.center.y = std::max(left_paddle.center.y, -court_radius.y + left_paddle.radius.y);
+	left_paddle.center.y = std::min(left_paddle.center.y,  court_radius.y - left_paddle.radius.y);
+	left_paddle.center.x = std::max(left_paddle.center.x, -court_radius.x + left_paddle.radius.x);
+	left_paddle.center.x = std::min(left_paddle.center.x,  court_radius.x - left_paddle.radius.x);
 
 	//----- ball update -----
 
 	//speed of ball doubles every four points:
-	float speed_multiplier = 4.0f * std::pow(2.0f, (left_score + right_score) / 4.0f);
+	//float speed_multiplier = 4.0f * std::pow(2.0f, (left_score + right_score) / 4.0f);
 
 	//velocity cap, though (otherwise ball can pass through paddles):
-	speed_multiplier = std::min(speed_multiplier, 10.0f);
+	//speed_multiplier = std::min(speed_multiplier, 1.0f);
 
-	ball += elapsed * speed_multiplier * ball_velocity;
+	float constant_magnitude_multipiler = 5.0f / length(ball_velocity);
+
+	ball += elapsed * constant_magnitude_multipiler * ball_velocity;
 
 	//---- collision handling ----
 
 	//paddles:
-	auto paddle_vs_ball = [this](glm::vec2 const &paddle) {
-		//compute area of overlap:
-		glm::vec2 min = glm::max(paddle - paddle_radius, ball - ball_radius);
-		glm::vec2 max = glm::min(paddle + paddle_radius, ball + ball_radius);
+	auto paddle_vs_ball = [this](Paddle const &paddle) {
+
+		glm::vec2 ball_translated = ball - paddle.center;
+		glm::vec2 ball_translated_rotated = ball_translated;
+		rotate_vector(ball_translated_rotated, paddle.rotation * -2.0f * (float)M_PI);
+		glm::vec2 velocity_rotated = ball_velocity;
+		rotate_vector(velocity_rotated, paddle.rotation * -2.0f * (float)M_PI);
+
+		float x_radius = ball_radius.x + paddle.radius.x;
+		float y_radius = ball_radius.y + paddle.radius.y;
+
+		float x_dist = abs(ball_translated_rotated.x) - x_radius;
+		float y_dist = abs(ball_translated_rotated.y) - y_radius;
 
 		//if no overlap, no collision:
-		if (min.x > max.x || min.y > max.y) return;
+		if (x_dist > 0 || y_dist > 0) { return; }
 
-		if (max.x - min.x > max.y - min.y) {
-			//wider overlap in x => bounce in y direction:
-			if (ball.y > paddle.y) {
-				ball.y = paddle.y + paddle_radius.y + ball_radius.y;
-				ball_velocity.y = std::abs(ball_velocity.y);
-			} else {
-				ball.y = paddle.y - paddle_radius.y - ball_radius.y;
-				ball_velocity.y = -std::abs(ball_velocity.y);
+		if (x_dist > y_dist) { // bounce in x direction
+			if (ball_translated_rotated.x > 0) {
+				ball_translated_rotated.x = paddle.center.x + paddle.radius.x + ball_radius.x;
+				velocity_rotated.x = glm::max(abs(velocity_rotated.x), 1.0f);
 			}
-		} else {
-			//wider overlap in y => bounce in x direction:
-			if (ball.x > paddle.x) {
-				ball.x = paddle.x + paddle_radius.x + ball_radius.x;
-				ball_velocity.x = std::abs(ball_velocity.x);
-			} else {
-				ball.x = paddle.x - paddle_radius.x - ball_radius.x;
-				ball_velocity.x = -std::abs(ball_velocity.x);
+			else {
+				ball_translated_rotated.x = paddle.center.x - paddle.radius.x - ball_radius.x;
+				velocity_rotated.x = -1.0f * glm::max(velocity_rotated.x, 1.0f);
 			}
-			//warp y velocity based on offset from paddle center:
-			float vel = (ball.y - paddle.y) / (paddle_radius.y + ball_radius.y);
-			ball_velocity.y = glm::mix(ball_velocity.y, vel, 0.75f);
 		}
+		else { // bounce in y direction
+			if (ball_translated_rotated.y > 0) {
+				ball_translated_rotated.y = paddle.center.y + paddle.radius.y + ball_radius.y;
+				velocity_rotated.y = glm::max(abs(velocity_rotated.y), 1.0f);
+			}
+			else {
+				ball_translated_rotated.y = paddle.center.y - paddle.radius.y - ball_radius.y;
+				velocity_rotated.y = -1.0f * glm::max(velocity_rotated.y, 1.0f);
+			}
+		}
+
+		//warp y velocity based on offset from paddle center:
+		float vel = (ball_translated_rotated.y) / (paddle.radius.y + ball_radius.y);
+		velocity_rotated.y = glm::mix(velocity_rotated.y, vel, 0.75f);
+		
+		rotate_vector(velocity_rotated, paddle.rotation * 2.0f * (float)M_PI);
+		ball_velocity = velocity_rotated;
+
 	};
 	paddle_vs_ball(left_paddle);
 	paddle_vs_ball(right_paddle);
@@ -224,6 +270,8 @@ void PongMode::update(float elapsed) {
 		if (ball_velocity.x > 0.0f) {
 			ball_velocity.x = -ball_velocity.x;
 			left_score += 1;
+			ball = glm::vec2(0.0f, 0.0f);
+			ball_velocity = glm::vec2( (mt()/(float)(mt.max())) - .5f, (mt() / (float)(mt.max())) - .5f);
 		}
 	}
 	if (ball.x < -court_radius.x + ball_radius.x) {
@@ -231,6 +279,8 @@ void PongMode::update(float elapsed) {
 		if (ball_velocity.x < 0.0f) {
 			ball_velocity.x = -ball_velocity.x;
 			right_score += 1;
+			ball = glm::vec2(0.0f, 0.0f);
+			ball_velocity = glm::vec2((mt() / (float)(mt.max())) - .5f, (mt() / (float)(mt.max())) - .5f);
 		}
 	}
 
@@ -250,11 +300,24 @@ void PongMode::update(float elapsed) {
 	}
 }
 
+
+
 void PongMode::draw(glm::uvec2 const &drawable_size) {
 	//some nice colors from the course web page:
 	#define HEX_TO_U8VEC4( HX ) (glm::u8vec4( (HX >> 24) & 0xff, (HX >> 16) & 0xff, (HX >> 8) & 0xff, (HX) & 0xff ))
+	const glm::u8vec4 left_color = HEX_TO_U8VEC4(0xFF0000FF);
+	const glm::u8vec4 right_color = HEX_TO_U8VEC4(0x0000FFFF);
+	
+	//I know this is exceedingly dumb, but it works, and I would get issues otherwise
+	const glm::u8vec4 left_score_color = HEX_TO_U8VEC4(0x08000000 * (uint8_t)glm::clamp((float)left_score - (float)right_score, .0f, 8.f));
+	const glm::u8vec4 right_score_color = HEX_TO_U8VEC4(0x00000800 * (uint8_t)glm::clamp((float)right_score - (float)left_score, .0f, 8.f));
+	const glm::u8vec4 total_score_color = HEX_TO_U8VEC4(0x08000800 * (uint8_t)glm::clamp(left_score + right_score, (uint32_t)0, (uint32_t)8));
+	const glm::u8vec4 new_bg_color = HEX_TO_U8VEC4(0x070007FF) + total_score_color + right_score_color + left_score_color;
+
 	const glm::u8vec4 bg_color = HEX_TO_U8VEC4(0x171714ff);
 	const glm::u8vec4 fg_color = HEX_TO_U8VEC4(0xd1bb54ff);
+	const glm::u8vec4 new_fg_color = HEX_TO_U8VEC4(0xd1ff54ff);
+
 	const glm::u8vec4 shadow_color = HEX_TO_U8VEC4(0x604d29ff);
 	const std::vector< glm::u8vec4 > rainbow_colors = {
 		HEX_TO_U8VEC4(0x604d29ff), HEX_TO_U8VEC4(0x624f29fc), HEX_TO_U8VEC4(0x69542df2),
@@ -279,28 +342,42 @@ void PongMode::draw(glm::uvec2 const &drawable_size) {
 	std::vector< Vertex > vertices;
 
 	//inline helper function for rectangle drawing:
-	auto draw_rectangle = [&vertices](glm::vec2 const &center, glm::vec2 const &radius, glm::u8vec4 const &color) {
-		//draw rectangle as two CCW-oriented triangles:
-		vertices.emplace_back(glm::vec3(center.x-radius.x, center.y-radius.y, 0.0f), color, glm::vec2(0.5f, 0.5f));
-		vertices.emplace_back(glm::vec3(center.x+radius.x, center.y-radius.y, 0.0f), color, glm::vec2(0.5f, 0.5f));
-		vertices.emplace_back(glm::vec3(center.x+radius.x, center.y+radius.y, 0.0f), color, glm::vec2(0.5f, 0.5f));
+	auto draw_rectangle = [&vertices](glm::vec2 const &center, glm::vec2 const &radius, float rotation, glm::u8vec4 const &color) {
+		
+		// Rectangle's points are represented by ABCD in left->right, top->bot order
 
-		vertices.emplace_back(glm::vec3(center.x-radius.x, center.y-radius.y, 0.0f), color, glm::vec2(0.5f, 0.5f));
-		vertices.emplace_back(glm::vec3(center.x+radius.x, center.y+radius.y, 0.0f), color, glm::vec2(0.5f, 0.5f));
-		vertices.emplace_back(glm::vec3(center.x-radius.x, center.y+radius.y, 0.0f), color, glm::vec2(0.5f, 0.5f));
+		glm::vec2 vec_a = glm::vec2(-radius.x,  radius.y);
+		glm::vec2 vec_b = glm::vec2( radius.x,  radius.y);
+		glm::vec2 vec_c = glm::vec2(-radius.x, -radius.y);
+		glm::vec2 vec_d = glm::vec2( radius.x, -radius.y);
+
+		rotate_vector(vec_a, rotation * 2.0f * (float)M_PI);
+		rotate_vector(vec_b, rotation * 2.0f * (float)M_PI);
+		rotate_vector(vec_c, rotation * 2.0f * (float)M_PI);
+		rotate_vector(vec_d, rotation * 2.0f * (float)M_PI);
+		
+		//draw rectangle as two CCW-oriented triangles:
+		//Triangle 1 is CDB, 2 is CBA
+		vertices.emplace_back(glm::vec3(center + vec_c, 0.0f), color, glm::vec2(0.5f, 0.5f));
+		vertices.emplace_back(glm::vec3(center + vec_d, 0.0f), color, glm::vec2(0.5f, 0.5f));
+		vertices.emplace_back(glm::vec3(center + vec_b, 0.0f), color, glm::vec2(0.5f, 0.5f));
+
+		vertices.emplace_back(glm::vec3(center + vec_c, 0.0f), color, glm::vec2(0.5f, 0.5f));
+		vertices.emplace_back(glm::vec3(center + vec_b, 0.0f), color, glm::vec2(0.5f, 0.5f));
+		vertices.emplace_back(glm::vec3(center + vec_a, 0.0f), color, glm::vec2(0.5f, 0.5f));
 	};
 
 	//shadows for everything (except the trail):
-
+	//TODO add rotation here
 	glm::vec2 s = glm::vec2(0.0f,-shadow_offset);
 
-	draw_rectangle(glm::vec2(-court_radius.x-wall_radius, 0.0f)+s, glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), shadow_color);
-	draw_rectangle(glm::vec2( court_radius.x+wall_radius, 0.0f)+s, glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), shadow_color);
-	draw_rectangle(glm::vec2( 0.0f,-court_radius.y-wall_radius)+s, glm::vec2(court_radius.x, wall_radius), shadow_color);
-	draw_rectangle(glm::vec2( 0.0f, court_radius.y+wall_radius)+s, glm::vec2(court_radius.x, wall_radius), shadow_color);
-	draw_rectangle(left_paddle+s, paddle_radius, shadow_color);
-	draw_rectangle(right_paddle+s, paddle_radius, shadow_color);
-	draw_rectangle(ball+s, ball_radius, shadow_color);
+	draw_rectangle(glm::vec2(-court_radius.x-wall_radius, 0.0f)+s, glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), 0.0f, shadow_color);
+	draw_rectangle(glm::vec2( court_radius.x+wall_radius, 0.0f)+s, glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), 0.0f, shadow_color);
+	draw_rectangle(glm::vec2( 0.0f,-court_radius.y-wall_radius)+s, glm::vec2(court_radius.x, wall_radius), 0.0f, shadow_color);
+	draw_rectangle(glm::vec2( 0.0f, court_radius.y+wall_radius)+s, glm::vec2(court_radius.x, wall_radius), 0.0f, shadow_color);
+	//draw_rectangle(left_paddle.center+s, left_paddle.radius, left_paddle.rotation, shadow_color);
+	//draw_rectangle(right_paddle.center+s, right_paddle.radius, right_paddle.rotation, shadow_color);
+	//draw_rectangle(ball+s, ball_radius, 0.0f, shadow_color);
 
 	//ball's trail:
 	if (ball_trail.size() >= 2) {
@@ -319,35 +396,34 @@ void PongMode::draw(glm::uvec2 const &drawable_size) {
 			glm::vec3 b = *(ti);
 			glm::vec2 at = (t - a.z) / (b.z - a.z) * (glm::vec2(b) - glm::vec2(a)) + glm::vec2(a);
 			//draw:
-			draw_rectangle(at, ball_radius, rainbow_colors[i]);
+			draw_rectangle(at, ball_radius, 0.0f, rainbow_colors[i]);
 		}
 	}
 
 	//solid objects:
 
 	//walls:
-	draw_rectangle(glm::vec2(-court_radius.x-wall_radius, 0.0f), glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), fg_color);
-	draw_rectangle(glm::vec2( court_radius.x+wall_radius, 0.0f), glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), fg_color);
-	draw_rectangle(glm::vec2( 0.0f,-court_radius.y-wall_radius), glm::vec2(court_radius.x, wall_radius), fg_color);
-	draw_rectangle(glm::vec2( 0.0f, court_radius.y+wall_radius), glm::vec2(court_radius.x, wall_radius), fg_color);
+	draw_rectangle(glm::vec2(-court_radius.x-wall_radius, 0.0f), glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), 0.0f, new_fg_color);
+	draw_rectangle(glm::vec2( court_radius.x+wall_radius, 0.0f), glm::vec2(wall_radius, court_radius.y + 2.0f * wall_radius), 0.0f, new_fg_color);
+	draw_rectangle(glm::vec2( 0.0f,-court_radius.y-wall_radius), glm::vec2(court_radius.x, wall_radius), 0.0f, new_fg_color);
+	draw_rectangle(glm::vec2( 0.0f, court_radius.y+wall_radius), glm::vec2(court_radius.x, wall_radius), 0.0f, new_fg_color);
 
-	//paddles:
-	draw_rectangle(left_paddle, paddle_radius, fg_color);
-	draw_rectangle(right_paddle, paddle_radius, fg_color);
+	//paddles: //TODO add rotation to paddle // TODO add colors to paddles
+	draw_rectangle(left_paddle.center, left_paddle.radius, left_paddle.rotation, left_color);
+	draw_rectangle(right_paddle.center, right_paddle.radius, right_paddle.rotation, right_color);
 	
 
 	//ball:
-	draw_rectangle(ball, ball_radius, fg_color);
+	draw_rectangle(ball, ball_radius, 0.0f, new_fg_color);
 
 	//scores:
 	glm::vec2 score_radius = glm::vec2(0.1f, 0.1f);
 	for (uint32_t i = 0; i < left_score; ++i) {
-		draw_rectangle(glm::vec2( -court_radius.x + (2.0f + 3.0f * i) * score_radius.x, court_radius.y + 2.0f * wall_radius + 2.0f * score_radius.y), score_radius, fg_color);
+		draw_rectangle(glm::vec2( -court_radius.x + (2.0f + 3.0f * i) * score_radius.x, court_radius.y + 2.0f * wall_radius + 2.0f * score_radius.y), score_radius, 0.0f, new_fg_color);
 	}
 	for (uint32_t i = 0; i < right_score; ++i) {
-		draw_rectangle(glm::vec2( court_radius.x - (2.0f + 3.0f * i) * score_radius.x, court_radius.y + 2.0f * wall_radius + 2.0f * score_radius.y), score_radius, fg_color);
+		draw_rectangle(glm::vec2( court_radius.x - (2.0f + 3.0f * i) * score_radius.x, court_radius.y + 2.0f * wall_radius + 2.0f * score_radius.y), score_radius, 0.0f, new_fg_color);
 	}
-
 
 
 	//------ compute court-to-window transform ------
@@ -394,7 +470,7 @@ void PongMode::draw(glm::uvec2 const &drawable_size) {
 	//---- actual drawing ----
 
 	//clear the color buffer:
-	glClearColor(bg_color.r / 255.0f, bg_color.g / 255.0f, bg_color.b / 255.0f, bg_color.a / 255.0f);
+	glClearColor(new_bg_color.r / 255.0f, new_bg_color.g / 255.0f, new_bg_color.b / 255.0f, new_bg_color.a / 255.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	//use alpha blending:

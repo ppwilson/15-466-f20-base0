@@ -7,6 +7,11 @@
 
 #include <vector>
 #include <deque>
+#include <algorithm>
+
+#include <random> 
+
+#include "Paddle.hpp"
 
 /*
  * PongMode is a game mode that implements a single-player game of Pong.
@@ -24,14 +29,17 @@ struct PongMode : Mode {
 	//----- game state -----
 
 	glm::vec2 court_radius = glm::vec2(7.0f, 5.0f);
-	glm::vec2 paddle_radius = glm::vec2(0.2f, 1.0f);
+	//glm::vec2 paddle_radius = glm::vec2(0.2f, 1.0f);
 	glm::vec2 ball_radius = glm::vec2(0.2f, 0.2f);
 
-	glm::vec2 left_paddle = glm::vec2(-court_radius.x + 0.5f, 0.0f);
-	glm::vec2 right_paddle = glm::vec2( court_radius.x - 0.5f, 0.0f);
+	//set up the paddles
+	Paddle left_paddle = Paddle(glm::vec2(-court_radius.x + 0.5f, 0.0f));
+	Paddle right_paddle = Paddle(glm::vec2(court_radius.x - 0.5f, 0.0f));
+
+	
 
 	glm::vec2 ball = glm::vec2(0.0f, 0.0f);
-	glm::vec2 ball_velocity = glm::vec2(-1.0f, 0.0f);
+	glm::vec2 ball_velocity = glm::vec2(-2.0f, 0.0f);
 
 	uint32_t left_score = 0;
 	uint32_t right_score = 0;
